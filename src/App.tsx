@@ -6,13 +6,22 @@ import { analyzeEmergency, EmergencyReport } from './services/gemini';
 import { getCurrentLocation, Coordinates } from './utils/geolocation';
 import { db, signInAnonymous } from './services/firebase';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { generateShareBrief } from './utils/emergency';
+import { sanitizeInput } from './utils/sanitize';
+import { trackEvent } from './utils/analytics';
 
+/**
+ * Main Application Component
+ * Handles the state and flow of the emergency reporting process.
+ * @returns {JSX.Element} The rendered App component.
+ */
 export default function App() {
   const [report, setReport] = useState<EmergencyReport | null>(null);
   const [location, setLocation] = useState<Coordinates | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [authReady, setAuthReady] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
+  const [isRateLimited, setIsRateLimited] = useState(false);
 
   useEffect(() => {
     // Attempt anonymous sign-in for quick reporting
@@ -29,9 +38,20 @@ export default function App() {
     initAuth();
   }, []);
 
+  /**
+   * Handles the submission of an emergency report.
+   * @param {string} text - The text description of the emergency.
+   * @param {string} [audioBase64] - Optional base64 encoded audio.
+   * @param {string} [imageBase64] - Optional base64 encoded image.
+   * @returns {Promise<void>}
+   */
   const handleEmergencySubmit = async (text: string, audioBase64?: string, imageBase64?: string) => {
+    if (isRateLimited) return;
     setIsLoading(true);
     try {
+      // Sanitize text input before processing
+      const sanitizedText = sanitizeInput(text);
+
       // 1. Get location (non-blocking if it fails, but we try)
       let currentLoc: Coordinates | null = null;
       try {
@@ -42,8 +62,19 @@ export default function App() {
       }
 
       // 2. Analyze with Gemini
-      const analysis = await analyzeEmergency(text, audioBase64, imageBase64);
+      const analysis = await analyzeEmergency(sanitizedText, audioBase64, imageBase64);
       setReport(analysis);
+      
+      trackEvent('report_submitted', { 
+        severity: analysis.severityLevel, 
+        type: analysis.incidentType,
+        hasAudio: !!audioBase64,
+        hasImage: !!imageBase64
+      });
+
+      // Rate limit for 10 seconds
+      setIsRateLimited(true);
+      setTimeout(() => setIsRateLimited(false), 10000);
 
       // 3. Save to Firestore (if auth succeeded and DB is configured)
       if (userId && db) {
@@ -69,20 +100,14 @@ export default function App() {
     }
   };
 
+  /**
+   * Handles sharing the emergency brief via Web Share API or clipboard.
+   * @returns {Promise<void>}
+   */
   const handleShare = async () => {
     if (!report) return;
 
-    const summary = `🚨 EMERGENCY ALERT 🚨
-Type: ${report.incidentType} (Level ${report.severityLevel})
-Location: ${report.extractedLocation || (location ? `${location.latitude}, ${location.longitude}` : 'Unknown')}
-Casualties: ${report.estimatedCasualties}
-Services Needed: ${report.requiredServices.join(', ')}
-
-Context: ${report.criticalContext}
-
-${report.weaponsInvolved || report.hazardsPresent ? '⚠️ DANGER: Weapons or hazards present!' : ''}
-
-Sent via SankatBridge`;
+    const summary = generateShareBrief(report, location);
 
     try {
       if (navigator.share) {
@@ -99,6 +124,9 @@ Sent via SankatBridge`;
     }
   };
 
+  /**
+   * Resets the application state to start a new report.
+   */
   const handleReset = () => {
     setReport(null);
     setLocation(null);
@@ -114,6 +142,7 @@ Sent via SankatBridge`;
 
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-50 font-sans selection:bg-red-500/30">
+      <a href="#main-content" className="sr-only focus:not-sr-only focus:absolute focus:z-50 focus:p-4 focus:bg-zinc-900 focus:text-white">Skip to content</a>
       <header className="bg-zinc-900 border-b border-zinc-800 sticky top-0 z-10">
         <div className="max-w-md mx-auto px-4 py-3 flex justify-between items-center">
           <h1 className="text-xl font-bold text-red-500 tracking-tight">SankatBridge</h1>
@@ -131,7 +160,7 @@ Sent via SankatBridge`;
 
       <main id="main-content" className="pb-20 pt-6">
         {!report ? (
-          <EmergencyInterface onSubmit={handleEmergencySubmit} isLoading={isLoading} />
+          <EmergencyInterface onSubmit={handleEmergencySubmit} isLoading={isLoading} isRateLimited={isRateLimited} />
         ) : (
           <div className="flex flex-col gap-6">
             <IncidentCard report={report} onShare={handleShare} />

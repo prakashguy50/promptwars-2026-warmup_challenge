@@ -66,7 +66,8 @@ export const analyzeEmergency = async (
     model: 'gemini-3-flash-preview',
     contents: { parts },
     config: {
-      systemInstruction: 'You are an expert emergency dispatcher and first responder AI. Analyze the provided text, audio, and/or image to extract critical emergency details. Provide verified, step-by-step first aid instructions suitable for a bystander based on the incident type and severity. Be concise, accurate, and prioritize life-saving actions.',
+      tools: [{ googleSearch: {} }],
+      systemInstruction: 'You are an expert emergency dispatcher and first responder AI. Analyze the provided text, audio, and/or image to extract critical emergency details. Provide verified, step-by-step first aid instructions suitable for a bystander based on the incident type and severity. Be concise, accurate, and prioritize life-saving actions. Use Google Search to verify the latest first aid protocols.',
       responseMimeType: 'application/json',
       responseSchema: {
         type: Type.OBJECT,

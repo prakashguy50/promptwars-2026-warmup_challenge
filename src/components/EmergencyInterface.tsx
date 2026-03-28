@@ -2,12 +2,21 @@ import React, { useState, useRef } from 'react';
 import { Mic, Camera, Send, Loader2, Square } from 'lucide-react';
 import { compressImage, blobToBase64 } from '../utils/media';
 
+/**
+ * Interface for the EmergencyInterface component props.
+ */
 interface EmergencyInterfaceProps {
   onSubmit: (text: string, audioBase64?: string, imageBase64?: string) => Promise<void>;
   isLoading: boolean;
+  isRateLimited: boolean;
 }
 
-export default function EmergencyInterface({ onSubmit, isLoading }: EmergencyInterfaceProps) {
+/**
+ * Component for capturing multimodal emergency input (text, audio, photo).
+ * @param {EmergencyInterfaceProps} props - The component props.
+ * @returns {JSX.Element} The rendered EmergencyInterface component.
+ */
+export default function EmergencyInterface({ onSubmit, isLoading, isRateLimited }: EmergencyInterfaceProps) {
   const [text, setText] = useState('');
   const [isRecording, setIsRecording] = useState(false);
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
@@ -19,6 +28,10 @@ export default function EmergencyInterface({ onSubmit, isLoading }: EmergencyInt
   const audioChunksRef = useRef<Blob[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  /**
+   * Starts recording audio from the user's microphone.
+   * @returns {Promise<void>}
+   */
   const startRecording = async () => {
     try {
       setError(null);
@@ -47,6 +60,9 @@ export default function EmergencyInterface({ onSubmit, isLoading }: EmergencyInt
     }
   };
 
+  /**
+   * Stops the current audio recording.
+   */
   const stopRecording = () => {
     if (mediaRecorderRef.current && isRecording) {
       mediaRecorderRef.current.stop();
@@ -54,6 +70,11 @@ export default function EmergencyInterface({ onSubmit, isLoading }: EmergencyInt
     }
   };
 
+  /**
+   * Handles the capture of a photo from the device camera.
+   * @param {React.ChangeEvent<HTMLInputElement>} e - The file input change event.
+   * @returns {Promise<void>}
+   */
   const handlePhotoCapture = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -69,6 +90,11 @@ export default function EmergencyInterface({ onSubmit, isLoading }: EmergencyInt
     }
   };
 
+  /**
+   * Handles the form submission to send the emergency report.
+   * @param {React.FormEvent} e - The form submission event.
+   * @returns {Promise<void>}
+   */
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!text && !audioBlob && !imageBase64) {
@@ -106,7 +132,7 @@ export default function EmergencyInterface({ onSubmit, isLoading }: EmergencyInt
         <button
           type="button"
           onClick={isRecording ? stopRecording : startRecording}
-          disabled={isLoading}
+          disabled={isLoading || isRateLimited}
           aria-label={isRecording ? "Stop recording audio" : "Start recording audio"}
           className={`flex flex-col items-center justify-center p-6 rounded-2xl transition-colors min-h-[120px] ${
             isRecording 
@@ -125,7 +151,7 @@ export default function EmergencyInterface({ onSubmit, isLoading }: EmergencyInt
         <button
           type="button"
           onClick={() => fileInputRef.current?.click()}
-          disabled={isLoading}
+          disabled={isLoading || isRateLimited}
           aria-label="Take a photo"
           className={`flex flex-col items-center justify-center p-6 rounded-2xl transition-colors min-h-[120px] ${
             imagePreview 
@@ -168,16 +194,18 @@ export default function EmergencyInterface({ onSubmit, isLoading }: EmergencyInt
           id="emergency-text"
           value={text}
           onChange={(e) => setText(e.target.value)}
-          disabled={isLoading}
+          disabled={isLoading || isRateLimited}
+          maxLength={5000}
+          aria-label="Describe the emergency"
           placeholder="Or type what happened..."
           className="w-full bg-zinc-800 border border-zinc-700 rounded-xl p-4 text-zinc-100 placeholder-zinc-500 focus:ring-2 focus:ring-red-500 focus:border-transparent min-h-[120px] resize-none text-lg"
         />
 
         <button
           type="submit"
-          disabled={isLoading || (!text && !audioBlob && !imageBase64)}
+          disabled={isLoading || isRateLimited || (!text && !audioBlob && !imageBase64)}
           className="w-full bg-red-600 hover:bg-red-700 disabled:bg-zinc-800 disabled:text-zinc-500 text-white font-bold text-xl py-5 rounded-xl flex items-center justify-center gap-3 transition-colors"
-          aria-label="Send Emergency Report"
+          aria-label={isRateLimited ? "Please wait before sending another report" : "Send Emergency Report"}
         >
           {isLoading ? (
             <>

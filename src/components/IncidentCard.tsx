@@ -1,34 +1,50 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Share2, AlertTriangle, HeartPulse, MapPin, ShieldAlert, CheckCircle2 } from 'lucide-react';
 import { EmergencyReport } from '../services/gemini';
+import { getSeverityColor } from '../utils/emergency';
+import { trackEvent } from '../utils/analytics';
 
+/**
+ * Interface for the IncidentCard component props.
+ */
 interface IncidentCardProps {
   report: EmergencyReport;
   onShare: () => void;
 }
 
+/**
+ * Component to display the structured emergency report and first aid instructions.
+ * @param {IncidentCardProps} props - The component props.
+ * @returns {JSX.Element} The rendered IncidentCard component.
+ */
 export default function IncidentCard({ report, onShare }: IncidentCardProps) {
-  const getSeverityColor = (level: string) => {
-    const num = parseInt(level, 10);
-    if (isNaN(num)) return 'bg-zinc-700 text-zinc-100 border-zinc-600';
-    if (num >= 4) return 'bg-red-900/50 text-red-200 border-red-500';
-    if (num === 3) return 'bg-orange-900/50 text-orange-200 border-orange-500';
-    return 'bg-green-900/50 text-green-200 border-green-500';
-  };
-
   const severityColor = getSeverityColor(report.severityLevel);
 
+  useEffect(() => {
+    if (report.firstAidInstructions && report.firstAidInstructions.length > 0) {
+      trackEvent('first_aid_viewed', { incidentType: report.incidentType });
+    }
+  }, [report]);
+
+  /**
+   * Handles the click event for sharing the brief and tracks it.
+   */
+  const handleShareClick = () => {
+    trackEvent('share_brief_clicked', { severity: report.severityLevel });
+    onShare();
+  };
+
   return (
-    <div className="w-full max-w-md mx-auto flex flex-col gap-6 p-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
+    <div className="w-full max-w-md mx-auto flex flex-col gap-6 p-4 animate-in fade-in slide-in-from-bottom-4 duration-500" aria-live="polite">
       
       {/* Situation Card */}
       <section className="bg-zinc-900 border border-zinc-800 rounded-2xl overflow-hidden shadow-xl" aria-labelledby="situation-heading">
         <div className={`p-4 border-b flex justify-between items-center ${severityColor}`}>
           <h2 id="situation-heading" className="text-xl font-bold flex items-center gap-2">
-            <AlertTriangle size={24} />
+            <AlertTriangle size={24} aria-hidden="true" />
             {report.incidentType.toUpperCase()}
           </h2>
-          <span className="font-mono font-bold text-lg px-3 py-1 bg-black/30 rounded-full">
+          <span role="alert" className="font-mono font-bold text-lg px-3 py-1 bg-black/30 rounded-full">
             Level {report.severityLevel}
           </span>
         </div>
@@ -83,7 +99,7 @@ export default function IncidentCard({ report, onShare }: IncidentCardProps) {
 
       {/* Share Button */}
       <button
-        onClick={onShare}
+        onClick={handleShareClick}
         className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xl py-5 rounded-xl flex items-center justify-center gap-3 transition-colors shadow-lg"
         aria-label="Share Emergency Brief"
       >

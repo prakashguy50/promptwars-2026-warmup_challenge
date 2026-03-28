@@ -2,10 +2,18 @@ import React from 'react';
 import { MapPin, Navigation } from 'lucide-react';
 import { Coordinates } from '../utils/geolocation';
 
+/**
+ * Interface for the LiveMap component props.
+ */
 interface LiveMapProps {
   location: Coordinates | null;
 }
 
+/**
+ * Component to display the nearest hospitals on a Google Map.
+ * @param {LiveMapProps} props - The component props.
+ * @returns {JSX.Element} The rendered LiveMap component.
+ */
 export default function LiveMap({ location }: LiveMapProps) {
   const apiKey = (import.meta as any).env.VITE_GOOGLE_MAPS_API_KEY;
   
@@ -37,6 +45,7 @@ export default function LiveMap({ location }: LiveMapProps) {
         {apiKey ? (
           <iframe
             title="Nearest Hospitals Map"
+            aria-label="Interactive map showing nearest hospitals"
             width="100%"
             height="300"
             style={{ border: 0 }}
