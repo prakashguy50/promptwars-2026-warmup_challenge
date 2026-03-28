@@ -1,0 +1,16 @@
+node_modules
+dist
+build
+.env
+.env.local
+.env.*.local
+.git
+.gitignore
+*.md
+!README.md
+.vscode
+.idea
+coverage
+.firebase
+firebase-debug.log
+.antigravity
