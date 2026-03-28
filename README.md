@@ -1,5 +1,7 @@
 # SankatBridge
 
+![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)
+
 🚀 **Live Demo:** [https://sankatbridge-241761287718.us-west1.run.app](https://sankatbridge-241761287718.us-west1.run.app)
 
 ## The Problem
