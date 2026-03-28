@@ -1,6 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { Mic, Camera, Send, Loader2, Square } from 'lucide-react';
 import { compressImage, blobToBase64 } from '../utils/media';
+import { useDebounce } from '../hooks/useDebounce';
 
 /**
  * Interface for the EmergencyInterface component props.
@@ -16,8 +17,9 @@ interface EmergencyInterfaceProps {
  * @param {EmergencyInterfaceProps} props - The component props.
  * @returns {JSX.Element} The rendered EmergencyInterface component.
  */
-export default function EmergencyInterface({ onSubmit, isLoading, isRateLimited }: EmergencyInterfaceProps) {
+export const EmergencyInterface = ({ onSubmit, isLoading, isRateLimited }: EmergencyInterfaceProps) => {
   const [text, setText] = useState('');
+  const debouncedText = useDebounce(text, 300);
   const [isRecording, setIsRecording] = useState(false);
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
@@ -97,7 +99,7 @@ export default function EmergencyInterface({ onSubmit, isLoading, isRateLimited 
    */
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!text && !audioBlob && !imageBase64) {
+    if (!debouncedText && !audioBlob && !imageBase64) {
       setError('Please provide text, audio, or a photo.');
       return;
     }
@@ -108,7 +110,7 @@ export default function EmergencyInterface({ onSubmit, isLoading, isRateLimited 
       if (audioBlob) {
         audioBase64Str = await blobToBase64(audioBlob);
       }
-      await onSubmit(text, audioBase64Str, imageBase64 || undefined);
+      await onSubmit(debouncedText, audioBase64Str, imageBase64 || undefined);
     } catch (err) {
       console.error('Submit error:', err);
       setError(err instanceof Error ? err.message : 'An error occurred during submission.');
@@ -203,7 +205,7 @@ export default function EmergencyInterface({ onSubmit, isLoading, isRateLimited 
 
         <button
           type="submit"
-          disabled={isLoading || isRateLimited || (!text && !audioBlob && !imageBase64)}
+          disabled={isLoading || isRateLimited || (!debouncedText && !audioBlob && !imageBase64)}
           className="w-full bg-red-600 hover:bg-red-700 disabled:bg-zinc-800 disabled:text-zinc-500 text-white font-bold text-xl py-5 rounded-xl flex items-center justify-center gap-3 transition-colors"
           aria-label={isRateLimited ? "Please wait before sending another report" : "Send Emergency Report"}
         >

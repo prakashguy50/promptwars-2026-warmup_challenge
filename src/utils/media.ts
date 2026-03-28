@@ -3,6 +3,7 @@
  * @param {File} file - The image file to compress.
  * @param {number} maxWidth - Maximum width of the output image.
  * @returns {Promise<string>} Base64 encoded JPEG string.
+ * @throws {Error} If canvas context cannot be retrieved or image loading fails.
  */
 export const compressImage = (file: File, maxWidth = 800): Promise<string> => {
   return new Promise((resolve, reject) => {
@@ -34,6 +35,7 @@ export const compressImage = (file: File, maxWidth = 800): Promise<string> => {
  * Converts a Blob to a base64 string.
  * @param {Blob} blob - The blob to convert.
  * @returns {Promise<string>} Base64 encoded string.
+ * @throws {Error} If file reading fails.
  */
 export const blobToBase64 = (blob: Blob): Promise<string> => {
   return new Promise((resolve, reject) => {

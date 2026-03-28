@@ -10,6 +10,7 @@ export interface Coordinates {
 /**
  * Gets the user's current geolocation.
  * @returns {Promise<Coordinates>} The user's coordinates.
+ * @throws {Error} If geolocation is not supported or permission is denied.
  */
 export const getCurrentLocation = (): Promise<Coordinates> => {
   return new Promise((resolve, reject) => {

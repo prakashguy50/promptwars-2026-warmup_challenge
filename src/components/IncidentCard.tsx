@@ -17,7 +17,7 @@ interface IncidentCardProps {
  * @param {IncidentCardProps} props - The component props.
  * @returns {JSX.Element} The rendered IncidentCard component.
  */
-export default function IncidentCard({ report, onShare }: IncidentCardProps) {
+export const IncidentCard = ({ report, onShare }: IncidentCardProps) => {
   const severityColor = getSeverityColor(report.severityLevel);
 
   useEffect(() => {
@@ -35,7 +35,7 @@ export default function IncidentCard({ report, onShare }: IncidentCardProps) {
   };
 
   return (
-    <div className="w-full max-w-md mx-auto flex flex-col gap-6 p-4 animate-in fade-in slide-in-from-bottom-4 duration-500" aria-live="polite">
+    <div className="w-full max-w-md mx-auto flex flex-col gap-6 p-4 animate-in fade-in slide-in-from-bottom-4 duration-500 contain-strict" aria-live="polite">
       
       {/* Situation Card */}
       <section className="bg-zinc-900 border border-zinc-800 rounded-2xl overflow-hidden shadow-xl" aria-labelledby="situation-heading">

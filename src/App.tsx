@@ -1,7 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import EmergencyInterface from './components/EmergencyInterface';
-import IncidentCard from './components/IncidentCard';
-import LiveMap from './components/LiveMap';
+import React, { useState, useEffect, Suspense, lazy } from 'react';
+import { EmergencyInterface } from './components/EmergencyInterface';
 import { analyzeEmergency, EmergencyReport } from './services/gemini';
 import { getCurrentLocation, Coordinates } from './utils/geolocation';
 import { db, signInAnonymous } from './services/firebase';
@@ -10,12 +8,15 @@ import { generateShareBrief } from './utils/emergency';
 import { sanitizeInput } from './utils/sanitize';
 import { trackEvent } from './utils/analytics';
 
+const IncidentCard = lazy(() => import('./components/IncidentCard').then(m => ({ default: m.IncidentCard })));
+const LiveMap = lazy(() => import('./components/LiveMap').then(m => ({ default: m.LiveMap })));
+
 /**
  * Main Application Component
  * Handles the state and flow of the emergency reporting process.
  * @returns {JSX.Element} The rendered App component.
  */
-export default function App() {
+export const App = () => {
   const [report, setReport] = useState<EmergencyReport | null>(null);
   const [location, setLocation] = useState<Coordinates | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -162,10 +163,12 @@ export default function App() {
         {!report ? (
           <EmergencyInterface onSubmit={handleEmergencySubmit} isLoading={isLoading} isRateLimited={isRateLimited} />
         ) : (
-          <div className="flex flex-col gap-6">
-            <IncidentCard report={report} onShare={handleShare} />
-            <LiveMap location={location} />
-          </div>
+          <Suspense fallback={<div className="p-4 text-center text-zinc-400">Loading emergency details...</div>}>
+            <div className="flex flex-col gap-6">
+              <IncidentCard report={report} onShare={handleShare} />
+              <LiveMap location={location} />
+            </div>
+          </Suspense>
         )}
       </main>
     </div>

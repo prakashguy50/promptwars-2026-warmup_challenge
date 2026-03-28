@@ -14,7 +14,7 @@ interface LiveMapProps {
  * @param {LiveMapProps} props - The component props.
  * @returns {JSX.Element} The rendered LiveMap component.
  */
-export default function LiveMap({ location }: LiveMapProps) {
+export const LiveMap = ({ location }: LiveMapProps) => {
   const apiKey = (import.meta as any).env.VITE_GOOGLE_MAPS_API_KEY;
   
   if (!location) {
@@ -33,7 +33,7 @@ export default function LiveMap({ location }: LiveMapProps) {
   const searchUrl = `https://www.google.com/maps/search/hospitals+near+${latitude},${longitude}`;
 
   return (
-    <section className="w-full max-w-md mx-auto p-4 animate-in fade-in slide-in-from-bottom-4 duration-500 delay-200" aria-labelledby="hospitals-heading">
+    <section className="w-full max-w-md mx-auto p-4 animate-in fade-in slide-in-from-bottom-4 duration-500 delay-200 contain-strict" aria-labelledby="hospitals-heading">
       <div className="bg-zinc-900 border border-zinc-800 rounded-2xl overflow-hidden shadow-xl">
         <div className="p-4 border-b border-zinc-800 flex justify-between items-center bg-zinc-950">
           <h2 id="hospitals-heading" className="text-xl font-bold text-zinc-100 flex items-center gap-2">
@@ -43,16 +43,29 @@ export default function LiveMap({ location }: LiveMapProps) {
         </div>
         
         {apiKey ? (
-          <iframe
-            title="Nearest Hospitals Map"
-            aria-label="Interactive map showing nearest hospitals"
-            width="100%"
-            height="300"
-            style={{ border: 0 }}
-            loading="lazy"
-            allowFullScreen
-            src={`https://www.google.com/maps/embed/v1/search?key=${apiKey}&q=hospitals+near+me&center=${latitude},${longitude}&zoom=14`}
-          ></iframe>
+          <div className="flex flex-col">
+            <iframe
+              title="Nearest Hospitals Map"
+              aria-label="Interactive map showing nearest hospitals"
+              width="100%"
+              height="300"
+              style={{ border: 0 }}
+              loading="lazy"
+              allowFullScreen
+              src={`https://www.google.com/maps/embed/v1/search?key=${apiKey}&q=hospitals+near+me&center=${latitude},${longitude}&zoom=14`}
+            ></iframe>
+            <div className="p-3 bg-zinc-950 border-t border-zinc-800 text-center">
+              <a
+                href={searchUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-sm text-red-400 hover:text-red-300 font-medium flex items-center justify-center gap-2"
+              >
+                <Navigation size={16} />
+                Open in Google Maps App
+              </a>
+            </div>
+          </div>
         ) : (
           <div className="p-6 text-center bg-zinc-900 flex flex-col items-center justify-center min-h-[200px]">
             <MapPin size={48} className="text-zinc-700 mb-4" />
