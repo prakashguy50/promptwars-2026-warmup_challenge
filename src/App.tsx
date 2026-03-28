@@ -1,12 +1,72 @@
 import React, { useState, useEffect, Suspense, lazy } from 'react';
 import { EmergencyInterface } from './components/EmergencyInterface';
-import { analyzeEmergency, EmergencyReport } from './services/gemini';
-import { getCurrentLocation, Coordinates } from './utils/geolocation';
-import { db, signInAnonymous } from './services/firebase';
+import { analyzeEmergency } from './services/gemini';
+import { EmergencyReport } from './types';
+import { getCurrentLocation } from './utils/geolocation';
+import { GeoLocation } from './types';
+import { db, signInAnonymous, auth } from './services/firebase';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { generateShareBrief } from './utils/emergency';
 import { sanitizeInput } from './utils/sanitize';
 import { trackEvent } from './utils/analytics';
+
+enum OperationType {
+  CREATE = 'create',
+  UPDATE = 'update',
+  DELETE = 'delete',
+  LIST = 'list',
+  GET = 'get',
+  WRITE = 'write',
+}
+
+interface FirestoreErrorInfo {
+  error: string;
+  operationType: OperationType;
+  path: string | null;
+  authInfo: {
+    userId: string | undefined;
+    email: string | null | undefined;
+    emailVerified: boolean | undefined;
+    isAnonymous: boolean | undefined;
+    tenantId: string | null | undefined;
+    providerInfo: {
+      providerId: string;
+      displayName: string | null;
+      email: string | null;
+      photoUrl: string | null;
+    }[];
+  }
+}
+
+/**
+ * Handles Firestore errors by formatting them and throwing a structured error.
+ * @param {unknown} error - The caught error.
+ * @param {OperationType} operationType - The type of Firestore operation.
+ * @param {string | null} path - The Firestore path.
+ * @throws {Error} Always throws a structured JSON error.
+ */
+function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null): never {
+  const errInfo: FirestoreErrorInfo = {
+    error: error instanceof Error ? error.message : String(error),
+    authInfo: {
+      userId: auth?.currentUser?.uid,
+      email: auth?.currentUser?.email,
+      emailVerified: auth?.currentUser?.emailVerified,
+      isAnonymous: auth?.currentUser?.isAnonymous,
+      tenantId: auth?.currentUser?.tenantId,
+      providerInfo: auth?.currentUser?.providerData.map(provider => ({
+        providerId: provider.providerId,
+        displayName: provider.displayName,
+        email: provider.email,
+        photoUrl: provider.photoURL
+      })) || []
+    },
+    operationType,
+    path
+  };
+  console.error('Firestore Error: ', JSON.stringify(errInfo));
+  throw new Error(JSON.stringify(errInfo));
+}
 
 const IncidentCard = lazy(() => import('./components/IncidentCard').then(m => ({ default: m.IncidentCard })));
 const LiveMap = lazy(() => import('./components/LiveMap').then(m => ({ default: m.LiveMap })));
@@ -15,25 +75,30 @@ const LiveMap = lazy(() => import('./components/LiveMap').then(m => ({ default: 
  * Main Application Component
  * Handles the state and flow of the emergency reporting process.
  * @returns {JSX.Element} The rendered App component.
+ * @throws {Error} Never throws directly.
  */
 export const App = () => {
   const [report, setReport] = useState<EmergencyReport | null>(null);
-  const [location, setLocation] = useState<Coordinates | null>(null);
+  const [location, setLocation] = useState<GeoLocation | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [authReady, setAuthReady] = useState(false);
+  const [authError, setAuthError] = useState<string | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
   const [isRateLimited, setIsRateLimited] = useState(false);
 
   useEffect(() => {
-    // Attempt anonymous sign-in for quick reporting
-    const initAuth = async () => {
+    /**
+     * Initializes anonymous authentication.
+     * @returns {Promise<void>}
+     */
+    const initAuth = async (): Promise<void> => {
       try {
         const cred = await signInAnonymous();
         setUserId(cred.user.uid);
         setAuthReady(true);
       } catch (err) {
-        console.error('Auth error (Firebase might not be configured yet):', err);
-        setAuthReady(true); // Continue anyway so the app works locally without DB
+        setAuthError(err instanceof Error ? err.message : 'Authentication failed.');
+        setAuthReady(true);
       }
     };
     initAuth();
@@ -45,8 +110,9 @@ export const App = () => {
    * @param {string} [audioBase64] - Optional base64 encoded audio.
    * @param {string} [imageBase64] - Optional base64 encoded image.
    * @returns {Promise<void>}
+   * @throws {Error} If processing or database write fails.
    */
-  const handleEmergencySubmit = async (text: string, audioBase64?: string, imageBase64?: string) => {
+  const handleEmergencySubmit = async (text: string, audioBase64?: string, imageBase64?: string): Promise<void> => {
     if (isRateLimited) return;
     setIsLoading(true);
     try {
@@ -54,12 +120,12 @@ export const App = () => {
       const sanitizedText = sanitizeInput(text);
 
       // 1. Get location (non-blocking if it fails, but we try)
-      let currentLoc: Coordinates | null = null;
+      let currentLoc: GeoLocation | null = null;
       try {
         currentLoc = await getCurrentLocation();
         setLocation(currentLoc);
       } catch (locErr) {
-        console.warn('Location access denied or failed:', locErr);
+        // Silently continue without location
       }
 
       // 2. Analyze with Gemini
@@ -77,24 +143,23 @@ export const App = () => {
       setIsRateLimited(true);
       setTimeout(() => setIsRateLimited(false), 10000);
 
-      // 3. Save to Firestore (if auth succeeded and DB is configured)
-      if (userId && db) {
-        try {
-          await addDoc(collection(db, 'incidents'), {
-            reporterId: userId,
-            timestamp: serverTimestamp(),
-            coordinates: currentLoc ? { lat: currentLoc.latitude, lng: currentLoc.longitude } : null,
-            structuredData: analysis,
-            status: 'pending'
-          });
-        } catch (dbErr) {
-          console.error('Failed to save to Firestore:', dbErr);
-        }
-      } else if (!db) {
-        console.warn('Firestore is not configured. Report was analyzed but not saved to the database.');
+      // 3. Save to Firestore (MUST succeed)
+      if (!userId || !db) {
+        throw new Error('Database connection or authentication is missing. Cannot save report.');
+      }
+
+      try {
+        await addDoc(collection(db, 'incidents'), {
+          reporterId: userId,
+          timestamp: serverTimestamp(),
+          coordinates: currentLoc ? { lat: currentLoc.latitude, lng: currentLoc.longitude } : null,
+          structuredData: analysis,
+          status: 'pending'
+        });
+      } catch (dbErr) {
+        handleFirestoreError(dbErr, OperationType.CREATE, 'incidents');
       }
     } catch (err) {
-      console.error('Emergency processing failed:', err);
       alert(err instanceof Error ? err.message : 'Failed to process emergency.');
     } finally {
       setIsLoading(false);
@@ -104,8 +169,9 @@ export const App = () => {
   /**
    * Handles sharing the emergency brief via Web Share API or clipboard.
    * @returns {Promise<void>}
+   * @throws {Error} Never throws directly.
    */
-  const handleShare = async () => {
+  const handleShare = async (): Promise<void> => {
     if (!report) return;
 
     const summary = generateShareBrief(report, location);
@@ -121,14 +187,15 @@ export const App = () => {
         alert('Emergency brief copied to clipboard!');
       }
     } catch (err) {
-      console.error('Error sharing:', err);
+      // Silently fail share
     }
   };
 
   /**
    * Resets the application state to start a new report.
+   * @returns {void}
    */
-  const handleReset = () => {
+  const handleReset = (): void => {
     setReport(null);
     setLocation(null);
   };
@@ -137,6 +204,18 @@ export const App = () => {
     return (
       <div className="min-h-screen bg-zinc-950 flex items-center justify-center">
         <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-red-500"></div>
+      </div>
+    );
+  }
+
+  if (authError) {
+    return (
+      <div className="min-h-screen bg-zinc-950 flex items-center justify-center p-4">
+        <div className="bg-red-900/50 border border-red-500 text-red-200 p-6 rounded-xl max-w-md text-center">
+          <h2 className="text-xl font-bold mb-2">Authentication Error</h2>
+          <p>{authError}</p>
+          <p className="mt-4 text-sm text-red-300">Please ensure Firebase Anonymous Authentication is enabled.</p>
+        </div>
       </div>
     );
   }
@@ -173,4 +252,4 @@ export const App = () => {
       </main>
     </div>
   );
-}
+};

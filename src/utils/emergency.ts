@@ -1,13 +1,12 @@
-import { EmergencyReport } from '../services/gemini';
-import { Coordinates } from './geolocation';
+import { EmergencyReport, GeoLocation } from '../types';
 
 /**
  * Generates a shareable text brief for an emergency report.
  * @param {EmergencyReport} report - The structured emergency report.
- * @param {Coordinates | null} location - The user's coordinates.
+ * @param {GeoLocation | null} location - The user's coordinates.
  * @returns {string} The formatted share brief.
  */
-export const generateShareBrief = (report: EmergencyReport, location: Coordinates | null): string => {
+export const generateShareBrief = (report: EmergencyReport, location: GeoLocation | null): string => {
   if (!report) return '';
   
   const locStr = report.extractedLocation || (location ? `${location.latitude}, ${location.longitude}` : 'Unknown');

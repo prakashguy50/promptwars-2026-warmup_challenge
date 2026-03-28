@@ -1,18 +1,11 @@
-/**
- * Interface for geolocation coordinates
- */
-export interface Coordinates {
-  latitude: number;
-  longitude: number;
-  accuracy: number;
-}
+import { GeoLocation } from '../types';
 
 /**
  * Gets the user's current geolocation.
- * @returns {Promise<Coordinates>} The user's coordinates.
+ * @returns {Promise<GeoLocation>} The user's coordinates.
  * @throws {Error} If geolocation is not supported or permission is denied.
  */
-export const getCurrentLocation = (): Promise<Coordinates> => {
+export const getCurrentLocation = (): Promise<GeoLocation> => {
   return new Promise((resolve, reject) => {
     if (!navigator.geolocation) {
       reject(new Error('Geolocation is not supported by your browser.'));

@@ -1,43 +1,41 @@
-# Firestore Security Rules Documentation
+# Firestore Security Rules
 
-This document outlines the security rules for the SankatBridge application.
+The following security rules are deployed to protect the `incidents` collection in Cloud Firestore. They enforce strict access control and data validation.
 
-## Collections
-
-### `incidents`
-Stores emergency reports submitted by users.
-
-#### Schema
-- `reporterId` (string): The UID of the user who submitted the report.
-- `timestamp` (timestamp): The time the report was submitted.
-- `coordinates` (map): `lat` (number), `lng` (number).
-- `structuredData` (map): The Gemini-analyzed emergency report.
-- `status` (string): Current status of the incident (e.g., 'pending', 'resolved').
-
-#### Rules
-- **Create**: Allowed if the user is authenticated (`request.auth != null`) and `request.resource.data.reporterId == request.auth.uid`.
-- **Read**: Allowed for the owner (`resource.data.reporterId == request.auth.uid`) or users with a specific responder role (e.g., `request.auth.token.role == 'responder'`).
-- **Update**: Allowed for responders to update the `status` field. Owners cannot modify the report after submission.
-- **Delete**: Denied for all users to maintain an audit trail.
-
-## Example Rules
 ```javascript
 rules_version = '2';
+
 service cloud.firestore {
   match /databases/{database}/documents {
-    function isAuthenticated() {
-      return request.auth != null;
-    }
-    
-    function isOwner(userId) {
-      return isAuthenticated() && request.auth.uid == userId;
+    // Helper Functions
+    function isAuthenticated() { return request.auth != null; }
+    function isOwner() { return isAuthenticated() && request.auth.uid == resource.data.reporterId; }
+    function uidUnchanged() { return !('reporterId' in request.resource.data) || request.resource.data.reporterId == request.auth.uid; }
+    function uidNotModified() { return !('reporterId' in request.resource.data) || request.resource.data.reporterId == resource.data.reporterId; }
+    function hasRequiredFields(fields) { return request.resource.data.keys().hasAll(fields); }
+    function areImmutableFieldsUnchanged(fields) { return !request.resource.data.diff(resource.data).affectedKeys().hasAny(fields); }
+
+    // Domain Validators
+    function isValidIncident(data) {
+      return hasRequiredFields(['reporterId', 'timestamp', 'coordinates', 'structuredData', 'status']) &&
+             data.reporterId is string && data.reporterId.size() > 0 && data.reporterId.size() < 100 &&
+             data.status is string && data.status.size() > 0 && data.status.size() < 50 &&
+             data.structuredData is map &&
+             (data.coordinates == null || (data.coordinates is map && 'lat' in data.coordinates && 'lng' in data.coordinates && data.coordinates.lat is number && data.coordinates.lng is number));
     }
 
     match /incidents/{incidentId} {
-      allow create: if isOwner(request.resource.data.reporterId);
-      allow read: if isOwner(resource.data.reporterId) || (isAuthenticated() && request.auth.token.role == 'responder');
-      allow update: if isAuthenticated() && request.auth.token.role == 'responder';
-      allow delete: if false;
+      // CREATE: Anyone authenticated can create, must set themselves as reporter
+      allow create: if isAuthenticated() && isValidIncident(request.resource.data) && uidUnchanged();
+      
+      // READ: Only the reporter can read their own incidents
+      allow read: if isOwner();
+      
+      // UPDATE: Only the reporter can update, cannot change reporterId or timestamp
+      allow update: if isOwner() && isValidIncident(request.resource.data) && uidNotModified() && areImmutableFieldsUnchanged(['timestamp']);
+                    
+      // DELETE: Only the reporter can delete their own incidents
+      allow delete: if isOwner();
     }
   }
 }

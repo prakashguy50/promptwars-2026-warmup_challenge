@@ -1,12 +1,12 @@
 import React from 'react';
 import { MapPin, Navigation } from 'lucide-react';
-import { Coordinates } from '../utils/geolocation';
+import { GeoLocation } from '../types';
 
 /**
  * Interface for the LiveMap component props.
  */
 interface LiveMapProps {
-  location: Coordinates | null;
+  location: GeoLocation | null;
 }
 
 /**

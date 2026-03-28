@@ -2,6 +2,7 @@ import React, { useState, useRef } from 'react';
 import { Mic, Camera, Send, Loader2, Square } from 'lucide-react';
 import { compressImage, blobToBase64 } from '../utils/media';
 import { useDebounce } from '../hooks/useDebounce';
+import { trackEvent } from '../utils/analytics';
 
 /**
  * Interface for the EmergencyInterface component props.
@@ -16,6 +17,7 @@ interface EmergencyInterfaceProps {
  * Component for capturing multimodal emergency input (text, audio, photo).
  * @param {EmergencyInterfaceProps} props - The component props.
  * @returns {JSX.Element} The rendered EmergencyInterface component.
+ * @throws {Error} Never throws directly, errors are caught and displayed in UI.
  */
 export const EmergencyInterface = ({ onSubmit, isLoading, isRateLimited }: EmergencyInterfaceProps) => {
   const [text, setText] = useState('');
@@ -33,8 +35,9 @@ export const EmergencyInterface = ({ onSubmit, isLoading, isRateLimited }: Emerg
   /**
    * Starts recording audio from the user's microphone.
    * @returns {Promise<void>}
+   * @throws {Error} If microphone access is denied.
    */
-  const startRecording = async () => {
+  const startRecording = async (): Promise<void> => {
     try {
       setError(null);
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -52,20 +55,21 @@ export const EmergencyInterface = ({ onSubmit, isLoading, isRateLimited }: Emerg
         const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
         setAudioBlob(audioBlob);
         stream.getTracks().forEach(track => track.stop());
+        trackEvent('voice_input_used');
       };
 
       mediaRecorder.start();
       setIsRecording(true);
     } catch (err) {
-      console.error('Error accessing microphone:', err);
       setError('Microphone access denied or unavailable.');
     }
   };
 
   /**
    * Stops the current audio recording.
+   * @returns {void}
    */
-  const stopRecording = () => {
+  const stopRecording = (): void => {
     if (mediaRecorderRef.current && isRecording) {
       mediaRecorderRef.current.stop();
       setIsRecording(false);
@@ -76,8 +80,9 @@ export const EmergencyInterface = ({ onSubmit, isLoading, isRateLimited }: Emerg
    * Handles the capture of a photo from the device camera.
    * @param {React.ChangeEvent<HTMLInputElement>} e - The file input change event.
    * @returns {Promise<void>}
+   * @throws {Error} If image processing fails.
    */
-  const handlePhotoCapture = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handlePhotoCapture = async (e: React.ChangeEvent<HTMLInputElement>): Promise<void> => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -86,18 +91,20 @@ export const EmergencyInterface = ({ onSubmit, isLoading, isRateLimited }: Emerg
       const compressedBase64 = await compressImage(file);
       setImageBase64(compressedBase64);
       setImagePreview(URL.createObjectURL(file));
+      trackEvent('photo_captured');
     } catch (err) {
-      console.error('Error processing image:', err);
       setError('Failed to process image.');
     }
   };
 
   /**
    * Handles the form submission to send the emergency report.
+   * Rate limiting is enforced via the isRateLimited prop passed from App.tsx.
    * @param {React.FormEvent} e - The form submission event.
    * @returns {Promise<void>}
+   * @throws {Error} If submission fails.
    */
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent): Promise<void> => {
     e.preventDefault();
     if (!debouncedText && !audioBlob && !imageBase64) {
       setError('Please provide text, audio, or a photo.');
@@ -112,7 +119,6 @@ export const EmergencyInterface = ({ onSubmit, isLoading, isRateLimited }: Emerg
       }
       await onSubmit(debouncedText, audioBase64Str, imageBase64 || undefined);
     } catch (err) {
-      console.error('Submit error:', err);
       setError(err instanceof Error ? err.message : 'An error occurred during submission.');
     }
   };
@@ -144,7 +150,7 @@ export const EmergencyInterface = ({ onSubmit, isLoading, isRateLimited }: Emerg
                 : 'bg-zinc-800 hover:bg-zinc-700 text-zinc-100'
           }`}
         >
-          {isRecording ? <Square size={48} className="mb-2" /> : <Mic size={48} className="mb-2" />}
+          {isRecording ? <Square size={48} className="mb-2" aria-hidden="true" /> : <Mic size={48} className="mb-2" aria-hidden="true" />}
           <span className="font-semibold text-lg">
             {isRecording ? 'Stop' : audioBlob ? 'Recorded' : 'Hold to Speak'}
           </span>
@@ -161,7 +167,7 @@ export const EmergencyInterface = ({ onSubmit, isLoading, isRateLimited }: Emerg
               : 'bg-zinc-800 hover:bg-zinc-700 text-zinc-100'
           }`}
         >
-          <Camera size={48} className="mb-2" />
+          <Camera size={48} className="mb-2" aria-hidden="true" />
           <span className="font-semibold text-lg">
             {imagePreview ? 'Photo Added' : 'Take Photo'}
           </span>
@@ -192,6 +198,7 @@ export const EmergencyInterface = ({ onSubmit, isLoading, isRateLimited }: Emerg
 
       <form onSubmit={handleSubmit} className="flex flex-col gap-4">
         <label htmlFor="emergency-text" className="sr-only">Describe the emergency</label>
+        <p id="text-help" className="sr-only">Type what happened, or use the microphone and camera buttons above.</p>
         <textarea
           id="emergency-text"
           value={text}
@@ -199,10 +206,12 @@ export const EmergencyInterface = ({ onSubmit, isLoading, isRateLimited }: Emerg
           disabled={isLoading || isRateLimited}
           maxLength={5000}
           aria-label="Describe the emergency"
+          aria-describedby="text-help"
           placeholder="Or type what happened..."
           className="w-full bg-zinc-800 border border-zinc-700 rounded-xl p-4 text-zinc-100 placeholder-zinc-500 focus:ring-2 focus:ring-red-500 focus:border-transparent min-h-[120px] resize-none text-lg"
         />
 
+        {/* Rate Limiting Implementation: Button is disabled if isRateLimited is true */}
         <button
           type="submit"
           disabled={isLoading || isRateLimited || (!debouncedText && !audioBlob && !imageBase64)}
@@ -211,12 +220,12 @@ export const EmergencyInterface = ({ onSubmit, isLoading, isRateLimited }: Emerg
         >
           {isLoading ? (
             <>
-              <Loader2 className="animate-spin" size={28} />
+              <Loader2 className="animate-spin" size={28} aria-hidden="true" />
               Analyzing...
             </>
           ) : (
             <>
-              <Send size={28} />
+              <Send size={28} aria-hidden="true" />
               SEND REPORT
             </>
           )}
@@ -224,4 +233,4 @@ export const EmergencyInterface = ({ onSubmit, isLoading, isRateLimited }: Emerg
       </form>
     </div>
   );
-}
+};

@@ -16,11 +16,11 @@ export const auth = app ? getAuth(app) : null;
 /**
  * Sign in anonymously for quick reporting
  * @returns {Promise<any>}
+ * @throws {Error} If Firebase is not configured
  */
 export const signInAnonymous = async () => {
   if (!auth) {
-    console.warn('Firebase is not configured. Using local mock user for demo purposes.');
-    return { user: { uid: `demo-user-${Date.now()}` } };
+    throw new Error('Firebase is not configured. Please update firebase-applet-config.json with your credentials.');
   }
   return await signInAnonymously(auth);
 };

@@ -57,7 +57,7 @@ describe('Gemini Service', () => {
 
   it('should throw error when API fails to return text', async () => {
     mockGenerateContent.mockResolvedValueOnce({ text: null });
-    await expect(analyzeEmergency('test')).rejects.toThrow('Failed to generate emergency report.');
+    await expect(analyzeEmergency('test')).rejects.toThrow('Failed to generate emergency report from AI.');
   });
 
   it('should throw error when API call rejects', async () => {

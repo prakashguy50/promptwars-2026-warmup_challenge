@@ -8,7 +8,9 @@
 During an emergency, the "golden hour" is critical. Bystanders often panic, lack first aid knowledge, and struggle to relay accurate information to emergency services. This gap in immediate, structured response can cost lives.
 
 ## The Solution: SankatBridge
-SankatBridge is an AI-powered emergency first-responder web application. It bridges the gap between a chaotic emergency scene and professional medical help by providing instant, structured guidance and seamless communication.
+SankatBridge is an AI-powered emergency first-responder web application. It acts as a **universal bridge between human intent and complex systems**. During an emergency, people are often panicked, confused, and unable to clearly articulate their situation. They might speak in mixed languages (e.g., Hindi, Tamil, English), send blurry photos, or provide fragmented text. 
+
+SankatBridge solves this by taking messy, unstructured multimodal input and instantly transforming it into structured, verified, life-saving actions. The Gemini AI backend naturally understands mixed multilingual inputs, allowing users to speak in their native tongue without switching settings.
 
 ### How It Works
 1. **Multimodal Input**: A bystander can quickly describe the emergency using text, voice recording, or by taking a photo of the scene.

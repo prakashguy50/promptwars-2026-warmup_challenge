@@ -1,0 +1,84 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: incidents
+    // Document ID: auto-generated
+    // Fields:
+    //   - reporterId: string (required, immutable) - Must match the creator's UID
+    //   - timestamp: timestamp (required, immutable) - Server timestamp
+    //   - coordinates: map or null (optional) - Contains lat (number) and lng (number)
+    //   - structuredData: map (required) - The Gemini analysis report
+    //   - status: string (required) - E.g., 'pending'
+    //
+    // ===============================================================
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    
+    // Check if the user is authenticated
+    function isAuthenticated() {
+       return request.auth != null;
+    }
+    
+    // Check if user owns the resource
+    function isOwner() {
+       return isAuthenticated() && request.auth.uid == resource.data.reporterId;
+    }
+    
+    // Verify UID hasn't been tampered with on create
+    function uidUnchanged() {
+       return !('reporterId' in request.resource.data) ||
+         request.resource.data.reporterId == request.auth.uid;
+    }
+    
+    // Ensure uid field is not modified on update
+    function uidNotModified() {
+       return !('reporterId' in request.resource.data) ||
+         request.resource.data.reporterId == resource.data.reporterId;
+    }
+    
+    // Validate required fields exist
+    function hasRequiredFields(fields) {
+       return request.resource.data.keys().hasAll(fields);
+    }
+    
+    // Validate that the document hasn't changed in the fields that are not allowed to be changed
+    function areImmutableFieldsUnchanged(fields) {
+      return !request.resource.data.diff(resource.data).affectedKeys().hasAny(fields);
+    }
+
+    // Domain Validators
+    function isValidIncident(data) {
+      return hasRequiredFields(['reporterId', 'timestamp', 'structuredData', 'status']) &&
+             data.reporterId is string && data.reporterId.size() > 0 && data.reporterId.size() < 100 &&
+             data.status is string && data.status.size() > 0 && data.status.size() < 50 &&
+             data.structuredData is map &&
+             (!('coordinates' in data) || data.coordinates == null || (data.coordinates is map && 'lat' in data.coordinates && 'lng' in data.coordinates && data.coordinates.lat is number && data.coordinates.lng is number));
+    }
+
+    match /incidents/{incidentId} {
+      // Anyone authenticated can create an incident, but they must set themselves as the reporter
+      allow create: if isAuthenticated() && 
+                    isValidIncident(request.resource.data) && 
+                    uidUnchanged();
+      
+      // Only the reporter can read their own incidents
+      allow read: if isOwner();
+      
+      // Only the reporter can update their own incidents, and they cannot change the reporterId or timestamp
+      allow update: if isOwner() && 
+                    isValidIncident(request.resource.data) && 
+                    uidNotModified() &&
+                    areImmutableFieldsUnchanged(['timestamp']);
+                    
+      // Only the reporter can delete their own incidents
+      allow delete: if isOwner();
+    }
+  }
+}
