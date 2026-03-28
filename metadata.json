@@ -1,5 +1,0 @@
-{
-  "name": "SankatBridge",
-  "description": "Emergency first-responder web app with multimodal AI analysis",
-  "requestFramePermissions": ["camera", "microphone", "geolocation"]
-}
