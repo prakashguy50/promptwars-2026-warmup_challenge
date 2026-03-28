@@ -1,21 +1,50 @@
 # Google Services Integration
 
-SankatBridge leverages multiple Google Cloud and Firebase services to provide a robust, scalable, and secure emergency response platform.
+SankatBridge leverages **7 Google Cloud and Firebase services** to deliver a reliable, scalable, and intelligent emergency response platform.
 
-## 1. Gemini API (Multimodal Analysis)
-The Gemini API (`gemini-3.1-flash-preview`) is the core intelligence engine of SankatBridge. It processes multimodal inputs (text, audio, and images) simultaneously to extract critical structured data like incident type, severity, and casualties. It also utilizes Google Search Grounding to verify and provide the most up-to-date first aid instructions.
+## Services Overview
 
-## 2. Firebase Authentication (Anonymous)
-Firebase Authentication is used to instantly authenticate users via `signInAnonymously()`. This ensures that bystanders can report emergencies immediately without the friction of creating an account, while still providing a secure, unique `userId` to track and protect their submitted reports.
+| # | Service | Purpose | File |
+|---|---------|---------|------|
+| 1 | Gemini API | Multimodal AI analysis | `src/services/gemini.ts` |
+| 2 | Firebase Auth | Anonymous authentication | `src/services/firebase.ts` |
+| 3 | Cloud Firestore | Real-time incident database | `src/services/firebase.ts`, `src/utils/firestore.ts` |
+| 4 | Google Maps | Hospital location finder | `src/components/LiveMap.tsx` |
+| 5 | Google Analytics | Usage event tracking | `index.html`, `src/utils/analytics.ts` |
+| 6 | Google Fonts | Typography (Inter) | `index.html` |
+| 7 | Cloud Run | Serverless deployment | `Dockerfile` |
 
-## 3. Cloud Firestore (Incident Storage)
-Cloud Firestore acts as the real-time, NoSQL database for storing emergency reports. Every incident is securely written to the `incidents` collection with strict security rules that ensure users can only read and update their own submissions, protecting sensitive emergency data.
+### 1. Gemini API (Core AI Engine)
+- **Model**: `gemini-2.5-flash` (multimodal)
+- Processes text, audio (base64), and images (base64) simultaneously
+- Returns structured JSON via `responseSchema` enforcement
+- **File**: `src/services/gemini.ts`
 
-## 4. Google Maps (Location Services)
-Google Maps (via the browser's Geolocation API and potential future Maps JavaScript API integration) is used to pinpoint the exact coordinates of the emergency. This location data is crucial for dispatching the correct services and is displayed on the `LiveMap` component.
+### 2. Firebase Authentication
+- `signInAnonymously()` for zero-friction emergency access
+- Each report linked to authenticated `uid`
+- **File**: `src/services/firebase.ts`
 
-## 5. Google Analytics (Usage Tracking)
-Google Analytics (`gtag.js`) is integrated to track critical user interactions and application performance. Events such as `report_submitted`, `share_brief_clicked`, and `first_aid_viewed` are fired to help understand how the application is used during high-stress situations, enabling future UX improvements.
+### 3. Cloud Firestore
+- Collection: `incidents` with full structured data
+- Real-time listeners via `onSnapshot`
+- Security rules in `FIRESTORE_RULES.md` and `firestore.rules`
+- **Files**: `src/services/firebase.ts`, `src/utils/firestore.ts`
 
-## 6. Cloud Run (Deployment)
-The application is designed to be containerized and deployed on Google Cloud Run. This serverless environment ensures that the application can scale automatically from zero to handle massive spikes in traffic during widespread emergencies, while maintaining high availability and security.
+### 4. Google Maps Platform
+- Maps Embed API for nearest hospital display
+- GPS-based location from browser Geolocation API
+- **File**: `src/components/LiveMap.tsx`
+
+### 5. Google Analytics (gtag.js)
+- Events: `report_submitted`, `share_brief_clicked`, `first_aid_viewed`, `voice_input_used`, `photo_captured`
+- **Files**: `index.html`, `src/utils/analytics.ts`
+
+### 6. Google Fonts
+- Inter font family for accessible typography
+- **File**: `index.html`
+
+### 7. Google Cloud Run
+- Multi-stage Dockerfile (Node build + nginx serve)
+- Port 8080, gzip, security headers, SPA routing
+- **Files**: `Dockerfile`, `.dockerignore`
