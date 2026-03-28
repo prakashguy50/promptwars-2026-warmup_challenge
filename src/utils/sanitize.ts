@@ -2,6 +2,7 @@
  * Sanitizes HTML input to prevent XSS by escaping special characters.
  * @param {string | null | undefined} input - The raw input string.
  * @returns {string} The sanitized string.
+ * @throws {Error} Never throws directly.
  */
 export const sanitizeInput = (input: string | null | undefined): string => {
   if (input == null) return '';

@@ -68,6 +68,7 @@ export const EmergencyInterface = ({ onSubmit, isLoading, isRateLimited }: Emerg
   /**
    * Stops the current audio recording.
    * @returns {void}
+   * @throws {Error} Never throws.
    */
   const stopRecording = (): void => {
     if (mediaRecorderRef.current && isRecording) {

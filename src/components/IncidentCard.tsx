@@ -31,6 +31,7 @@ export const IncidentCard = memo(({ report, onShare }: IncidentCardProps) => {
   /**
    * Handles the click event for sharing the brief and tracks it.
    * @returns {void}
+   * @throws {Error} Never throws.
    */
   const handleShareClick = (): void => {
     trackEvent('share_brief_clicked', { severity: report.severityLevel });

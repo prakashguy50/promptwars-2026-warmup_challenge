@@ -4,20 +4,11 @@ import { analyzeEmergency } from './services/gemini';
 import { EmergencyReport } from './types';
 import { getCurrentLocation } from './utils/geolocation';
 import { GeoLocation } from './types';
-import { db, signInAnonymous, auth } from './services/firebase';
-import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { signInAnonymous, auth } from './services/firebase';
 import { generateShareBrief } from './utils/emergency';
 import { sanitizeInput } from './utils/sanitize';
 import { trackEvent } from './utils/analytics';
-
-enum OperationType {
-  CREATE = 'create',
-  UPDATE = 'update',
-  DELETE = 'delete',
-  LIST = 'list',
-  GET = 'get',
-  WRITE = 'write',
-}
+import { saveEmergencyReport, OperationType } from './utils/firestore';
 
 interface FirestoreErrorInfo {
   error: string;
@@ -90,6 +81,7 @@ export const App = () => {
     /**
      * Initializes anonymous authentication.
      * @returns {Promise<void>}
+     * @throws {Error} Never throws directly.
      */
     const initAuth = async (): Promise<void> => {
       try {
@@ -105,6 +97,21 @@ export const App = () => {
   }, []);
 
   /**
+   * Attempts to fetch and set the user's location.
+   * @returns {Promise<GeoLocation | null>}
+   * @throws {Error} Never throws.
+   */
+  const fetchLocation = async (): Promise<GeoLocation | null> => {
+    try {
+      const currentLoc = await getCurrentLocation();
+      setLocation(currentLoc);
+      return currentLoc;
+    } catch (locErr) {
+      return null;
+    }
+  };
+
+  /**
    * Handles the submission of an emergency report.
    * @param {string} text - The text description of the emergency.
    * @param {string} [audioBase64] - Optional base64 encoded audio.
@@ -116,19 +123,9 @@ export const App = () => {
     if (isRateLimited) return;
     setIsLoading(true);
     try {
-      // Sanitize text input before processing
       const sanitizedText = sanitizeInput(text);
+      const currentLoc = await fetchLocation();
 
-      // 1. Get location (non-blocking if it fails, but we try)
-      let currentLoc: GeoLocation | null = null;
-      try {
-        currentLoc = await getCurrentLocation();
-        setLocation(currentLoc);
-      } catch (locErr) {
-        // Silently continue without location
-      }
-
-      // 2. Analyze with Gemini
       const analysis = await analyzeEmergency(sanitizedText, audioBase64, imageBase64);
       setReport(analysis);
       
@@ -139,23 +136,13 @@ export const App = () => {
         hasImage: !!imageBase64
       });
 
-      // Rate limit for 10 seconds
       setIsRateLimited(true);
       setTimeout(() => setIsRateLimited(false), 10000);
 
-      // 3. Save to Firestore (MUST succeed)
-      if (!userId || !db) {
-        throw new Error('Database connection or authentication is missing. Cannot save report.');
-      }
+      if (!userId) throw new Error('Authentication is missing. Cannot save report.');
 
       try {
-        await addDoc(collection(db, 'incidents'), {
-          reporterId: userId,
-          timestamp: serverTimestamp(),
-          coordinates: currentLoc ? { lat: currentLoc.latitude, lng: currentLoc.longitude } : null,
-          structuredData: analysis,
-          status: 'pending'
-        });
+        await saveEmergencyReport(userId, currentLoc, analysis);
       } catch (dbErr) {
         handleFirestoreError(dbErr, OperationType.CREATE, 'incidents');
       }
@@ -194,6 +181,7 @@ export const App = () => {
   /**
    * Resets the application state to start a new report.
    * @returns {void}
+   * @throws {Error} Never throws.
    */
   const handleReset = (): void => {
     setReport(null);

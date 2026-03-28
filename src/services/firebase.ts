@@ -28,6 +28,7 @@ export const signInAnonymous = async () => {
 /**
  * Sign in with Google for responders
  * @returns {Promise<any>}
+ * @throws {Error} If Firebase is not configured or sign in fails
  */
 export const signInGoogle = async () => {
   if (!auth) throw new Error('Firebase is not configured. Please update firebase-applet-config.json with your credentials.');

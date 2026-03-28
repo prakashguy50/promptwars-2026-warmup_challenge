@@ -13,6 +13,7 @@ interface LiveMapProps {
  * Component to display the nearest hospitals on a Google Map.
  * @param {LiveMapProps} props - The component props.
  * @returns {JSX.Element} The rendered LiveMap component.
+ * @throws {Error} Never throws directly.
  */
 export const LiveMap = ({ location }: LiveMapProps) => {
   const apiKey = (import.meta as any).env.VITE_GOOGLE_MAPS_API_KEY;

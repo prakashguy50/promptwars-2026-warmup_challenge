@@ -5,6 +5,7 @@ import { EmergencyReport, GeoLocation } from '../types';
  * @param {EmergencyReport} report - The structured emergency report.
  * @param {GeoLocation | null} location - The user's coordinates.
  * @returns {string} The formatted share brief.
+ * @throws {Error} Never throws directly.
  */
 export const generateShareBrief = (report: EmergencyReport, location: GeoLocation | null): string => {
   if (!report) return '';
@@ -27,6 +28,7 @@ Sent via SankatBridge`;
  * Gets the tailwind color classes based on severity level.
  * @param {string} level - The severity level (1-5).
  * @returns {string} Tailwind classes for the severity badge.
+ * @throws {Error} Never throws directly.
  */
 export const getSeverityColor = (level: string): string => {
   const num = parseInt(level, 10);
